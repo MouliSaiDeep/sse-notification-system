@@ -6,12 +6,16 @@ import com.gpp.sse_notification_system.service.SseConnectionManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -35,17 +39,17 @@ public class SseController {
 
         Set<String> validChannels = notificationService.getValidUserChannels(userId, requestedChannels);
 
-        // Define timeout: 0 means no timeout (rely on underlying network closing or our keep-alives)
-        SseEmitter emitter = new SseEmitter(0L);
-
         if (validChannels.isEmpty()) {
-            emitter.complete();
-            return emitter;
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "User is not subscribed to any of the requested channels");
         }
+
+        // Timeout 0 = no timeout; rely on heartbeats to keep alive
+        SseEmitter emitter = new SseEmitter(0L);
 
         connectionManager.addConnection(emitter, validChannels);
 
-        // Handle Event Replay logic (Last-Event-ID)
+        // Event Replay: stream missed events before going live
         if (lastEventId != null) {
             List<Event> missedEvents = notificationService.getMissedEvents(validChannels, lastEventId);
             for (Event event : missedEvents) {
@@ -57,11 +61,17 @@ public class SseController {
                 } catch (IOException e) {
                     log.error("Error sending missed event during replay", e);
                     emitter.completeWithError(e);
-                    return emitter; // Prevent sending more if IO fails
+                    return emitter;
                 }
             }
         }
 
         return emitter;
     }
+
+    @GetMapping("/active-connections")
+    public ResponseEntity<Map<String, Integer>> getActiveConnections() {
+        return ResponseEntity.ok(Map.of("activeConnections", connectionManager.getActiveConnectionCount()));
+    }
 }
+

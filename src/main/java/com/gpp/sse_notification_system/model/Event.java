@@ -1,5 +1,6 @@
 package com.gpp.sse_notification_system.model;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -26,6 +27,7 @@ public class Event {
     @Column(columnDefinition = "jsonb", nullable = false)
     private Map<String, Object> payload;
 
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
     @Column(name = "created_at", nullable = false, updatable = false)
     private ZonedDateTime createdAt = ZonedDateTime.now();
 }

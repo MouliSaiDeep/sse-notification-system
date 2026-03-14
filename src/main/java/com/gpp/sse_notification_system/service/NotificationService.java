@@ -62,6 +62,14 @@ public class NotificationService {
                 .collect(Collectors.toSet());
     }
 
+    public List<String> getUserChannels(Integer userId) {
+        return subscriptionRepository.findByUserId(userId).stream()
+                .map(UserSubscription::getChannel)
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
     public List<Event> getMissedEvents(Set<String> channels, Long lastEventId) {
         return eventRepository.findByChannelInAndIdGreaterThanOrderByIdAsc(List.copyOf(channels), lastEventId);
     }

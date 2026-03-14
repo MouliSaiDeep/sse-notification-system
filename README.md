@@ -91,6 +91,16 @@ Content-Type: application/json
 
 ---
 
+### List User's Subscribed Channels
+
+```
+GET /api/events/channels?userId=1
+
+→ 200 {"userId": 1, "channels": ["alerts", "notifications"]}
+```
+
+---
+
 ### Publish an Event
 
 ```
@@ -144,31 +154,81 @@ GET /api/events/history?channel=alerts&limit=5&afterId=2
 ```
 
 | Param     | Required | Default | Description                        |
-|-----------|----------|---------|------------------------------------|
+|-----------|----------|---------|-------------------------------------|
 | `channel` | Yes      | —       | Channel to query                   |
 | `afterId` | No       | —       | Return events with `id > afterId`  |
 | `limit`   | No       | 50      | Max number of events to return     |
 
 ---
 
+### Active Connections
+
+```
+GET /api/events/active-connections
+
+→ 200 {"activeConnections": 2}
+```
+
+Returns the current number of active SSE client connections.
+
+---
+
 ## Testing with curl
 
-### 1. Connect to SSE Stream
+### 1. Health Check
+```bash
+curl http://localhost:8080/health
+```
+
+### 2. Subscribe a User to a Channel
+```bash
+curl -X POST http://localhost:8080/api/events/channels/subscribe \
+  -H "Content-Type: application/json" \
+  -d '{"userId": 1, "channel": "test-channel"}'
+```
+
+### 3. List a User's Subscriptions
+```bash
+curl "http://localhost:8080/api/events/channels?userId=1"
+```
+
+### 4. Connect to SSE Stream
 ```bash
 curl -N "http://localhost:8080/api/events/stream?userId=1&channels=alerts"
 ```
 
-### 2. Publish an Event (in another terminal)
+### 5. Publish an Event (in another terminal)
 ```bash
 curl -X POST http://localhost:8080/api/events/publish \
   -H "Content-Type: application/json" \
   -d '{"channel": "alerts", "eventType": "SYSTEM_ALERT", "payload": {"message": "Hello!"}}'
 ```
 
-### 3. Test Event Replay
+### 6. Test Event Replay (reconnect with Last-Event-ID)
 ```bash
 curl -N -H "Last-Event-ID: 3" \
   "http://localhost:8080/api/events/stream?userId=1&channels=alerts"
+```
+
+### 7. Unsubscribe a User from a Channel
+```bash
+curl -X POST http://localhost:8080/api/events/channels/unsubscribe \
+  -H "Content-Type: application/json" \
+  -d '{"userId": 1, "channel": "test-channel"}'
+```
+
+### 8. Query Event History (with pagination)
+```bash
+# First page
+curl "http://localhost:8080/api/events/history?channel=history-channel&limit=5"
+
+# Next page (use afterId from last event of previous response)
+curl "http://localhost:8080/api/events/history?channel=history-channel&afterId=7&limit=5"
+```
+
+### 9. Check Active Connections
+```bash
+curl http://localhost:8080/api/events/active-connections
 ```
 
 ---
@@ -200,6 +260,7 @@ Composite PK: `(user_id, channel)`
 ## Seed Data
 
 The `seeds/init.sql` script creates:
-- **User 1** subscribed to `alerts`, `notifications`
-- **User 2** subscribed to `alerts`
+- **User 1** subscribed to `alerts`, `notifications`, `history-channel`
+- **User 2** subscribed to `alerts`, `history-channel`
 - 3 sample events in `alerts` and `notifications` channels
+- 10 sequential events in `history-channel` (for pagination testing)
